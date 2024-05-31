@@ -1,0 +1,147 @@
+' check if sheet already exists
+Function SheetExists(ByVal sheetname As String) As Boolean
+    Dim sht As Worksheet
+    On Error Resume Next
+    Set sht = ActiveWorkbook.Sheets(sheetname)
+    On Error GoTo 0
+    SheetExists = Not sht Is Nothing
+End Function
+
+
+Sub combine_multiple_sheets()
+
+    Application.ScreenUpdating = False
+    
+    Dim wb As Workbook: Set wb = Application.ActiveWorkbook
+    
+    'create combined sheet
+    Dim sheetname As String
+    sheetname = "All"
+    
+     If SheetExists(sheetname) = True Then
+        res = MsgBox("The combined sheet [ALL] exists, do you want to delet it?", vbYesNo)
+        If res = vbYes Then
+            Application.DisplayAlerts = False
+            wb.Sheets(sheetname).Delete
+            Application.DisplayAlerts = True
+        Else
+            MsgBox ("Exit combine sheet")
+            Exit Sub
+        End If
+    End If
+    
+         
+    wb.Sheets.Add(Before:=wb.Worksheets(1)).Name = sheetname
+
+
+    ' destination sheet
+    Dim ws_dst As Worksheet
+    Set ws_dst = Sheets(sheetname)
+    ws_dst.Select
+    ws_dst.Cells.Clear
+    
+                
+           
+    Dim dst_start_col As Long
+    
+    add_source = MsgBox("Do you want to add [Source Sheet Name] in the first column of combined sheet?", vbYesNo)
+    
+    If add_source = vbYes Then
+
+        dst_start_col = 1
+    Else
+        dst_start_col = 0
+
+    End If
+    
+    Dim ws As Worksheet
+    For Each ws In ActiveWorkbook.Worksheets
+        wb.Sheets(ws.Name).Select
+        ' clear the filter and show all data
+        With ws
+            If .AutoFilterMode Then .AutoFilter.ShowAllData
+            .Columns.Hidden = False
+            .Rows.Hidden = False
+            .Cells(1, 1).Select
+        End With
+        
+        If ws.Name <> sheetname Then
+        
+            Dim last_row, last_col, dst_last_row As Long
+            'last_row = ws.UsedRange.Rows(ws.UsedRange.Rows.Count).Row
+            'last_row = Cells(Rows.Count, 1).End(xlUp).Row
+            On Error GoTo next_sheet
+            last_row = Cells.Find(What:="*", _
+                    After:=Range("A1"), _
+                    LookAt:=xlPart, _
+                    LookIn:=xlFormulas, _
+                    SearchOrder:=xlByRows, _
+                    SearchDirection:=xlPrevious, _
+                    MatchCase:=False).Row
+                    
+            'last_col = ws.UsedRange.Column + ws.UsedRange.Columns.Count - 1
+            
+            last_col = Cells.Find(What:="*", _
+                                After:=Range("A1"), _
+                                LookAt:=xlPart, _
+                                LookIn:=xlFormulas, _
+                                SearchOrder:=xlByColumns, _
+                                SearchDirection:=xlPrevious, _
+                                MatchCase:=False).Column
+
+            
+            'header row
+            For i = 1 To last_col
+            
+                If add_source = vbYes Then
+                    ws_dst.Cells(1, 1).Value = "Source Sheet Name"
+                End If
+                
+                If (Not IsEmpty(ws.Cells(1, i).Value)) And Len(Trim(ws.Cells(1, i).Value)) > 0 Then
+                    ws.Cells(1, i).Copy
+                    ws_dst.Cells(1, i + dst_start_col).PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+                    ws_dst.Cells(1, i + dst_start_col).PasteSpecial Paste:=xlPasteColumnWidths
+                End If
+            Next
+
+            Dim rng_src, rng_dst As Range
+            
+            Set rng_scr = ws.Range(ws.Cells(2, 1), ws.Cells(last_row, last_col))
+            rng_scr.Copy
+            wb.Sheets(ws_dst.Name).Select
+            dst_last_row = ws_dst.UsedRange.Rows(ws_dst.UsedRange.Rows.Count).Row
+            
+            ws_dst.Cells(dst_last_row + 1, 1 + dst_start_col).PasteSpecial Paste:=xlPasteAllUsingSourceTheme
+            
+            If add_source = vbYes Then
+                ws_dst.Range(ws_dst.Cells(dst_last_row + 1, 1), ws_dst.Cells(dst_last_row + last_row - 1, 1)).Value = ws.Name
+            End If
+
+        End If
+        
+next_sheet:
+
+    Next ws
+    dst_last_row = ws_dst.UsedRange.Rows(ws_dst.UsedRange.Rows.Count).Row
+    ws_dst.Select
+    ws_dst.Range("A1").AutoFilter
+    
+    If add_source = vbYes Then
+        ws_dst.Range("A1:A" & dst_last_row).Borders.LineStyle = xlContinuous
+        ws_dst.Columns("A").EntireColumn.ColumnWidth = 15
+    End If
+    ws_dst.Columns("E").EntireColumn.ColumnWidth = 15
+    ws_dst.Columns("M:V").EntireColumn.ColumnWidth = 15
+    
+    ws_dst.Rows("2:" & dst_last_row).RowHeight = 50
+    
+    ws_dst.Range("A1").Select
+    
+    MsgBox "sheets combined to Sheet [All]"
+    
+
+    Application.CutCopyMode = False
+    Application.ScreenUpdating = True
+    
+End Sub
+
